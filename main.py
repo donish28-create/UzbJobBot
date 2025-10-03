@@ -407,7 +407,6 @@ async def emp_finish(m: Message, state: FSMContext):
     await m.answer("Rahmat! Ma'lumot saqlandi ✅", reply_markup=kb_main())
     await state.clear()
 
-@dp.startup()
 async def main():
     dp.include_router(router)
     asyncio.create_task(ping_server())  # 🔹 Ping fon rejimida ishga tushadi
