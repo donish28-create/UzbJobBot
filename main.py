@@ -1,4 +1,15 @@
+import asyncio
+import aiohttp
 
+async def ping_server():
+    while True:
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get("https://uzbjobbot.onrender.com/") as response:
+                    print("Pinged server:", response.status)
+        except Exception as e:
+            print("Ping failed:", e)
+        await asyncio.sleep(300)  # 5 daqiqa (300 soniya)
 import asyncio
 import aiosqlite
 import os
@@ -11,7 +22,6 @@ from aiogram.filters import CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
 from dotenv import load_dotenv
-
 load_dotenv()
 BOT_TOKEN = os.getenv("BOT_TOKEN", "REPLACE")
 ADMIN_ID = int(os.getenv("ADMIN_ID", "0"))
@@ -398,13 +408,11 @@ async def emp_finish(m: Message, state: FSMContext):
     await state.clear()
 
 @dp.startup()
-async def on_startup():
-    await db_init()
-    print("Bot started.")
-
-def main():
+async def main():
     dp.include_router(router)
-    asyncio.run(dp.start_polling(bot))
+    asyncio.create_task(ping_server())  # 🔹 Ping fon rejimida ishga tushadi
+    await db_init()  # 🔹 Baza yaratiladi
+    await dp.start_polling(bot)  # 🔹 Botni ishga tushiramiz
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
