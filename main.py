@@ -145,9 +145,37 @@ class Employer(StatesGroup):
 
 # 🧱 Ma’lumotlar bazasi
 INIT_SQL = """
-CREATE TABLE IF NOT EXISTS seekers (...);
-CREATE TABLE IF NOT EXISTS offers (...);
-CREATE TABLE IF NOT EXISTS counters (...);
+CREATE TABLE IF NOT EXISTS seekers (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    tg_id INTEGER,
+    full_name TEXT,
+    category TEXT,
+    region TEXT,
+    experience TEXT,
+    salary TEXT,
+    contact TEXT,
+    contact_visible INTEGER DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS offers (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    tg_id INTEGER,
+    full_name TEXT,
+    category TEXT,
+    region TEXT,
+    headcount TEXT,
+    salary TEXT,
+    contact TEXT,
+    contact_visible INTEGER DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS counters (
+    category TEXT PRIMARY KEY,
+    seekers_count INTEGER DEFAULT 0,
+    offers_count INTEGER DEFAULT 0
+);
 """
 
 async def db_init():
