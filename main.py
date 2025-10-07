@@ -2,16 +2,12 @@ import asyncio
 import aiosqlite
 import os
 import re
+import aiohttp
 from typing import List, Dict
 
 from aiogram import Bot, Dispatcher, F, Router
 from aiogram.client.default import DefaultBotProperties
-from aiogram.types import (
-    Message, 
-    ReplyKeyboardMarkup, 
-    KeyboardButton, 
-    ReplyKeyboardRemove
-)
+from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove
 from aiogram.filters import CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
@@ -33,7 +29,7 @@ router = Router()
 DB_PATH = "data.db"
 
 # -------------------- Ma'lumotlar --------------------
-CATEGORIES = [
+CATEGORIES: List[str] = [
     "Qurilish / Usta","Haydovchi / Avto","Oshpaz / Kafe / Restoran","Sotuv / Kassir / Admin",
     "Tikuvchi / Atelye / Moda","Yordamchi ishchi","O‘qituvchi / Repetitor","Tibbiyot / Parvarish",
     "Uy xizmatchisi / Tozalash","IT / Dasturchi / Dizayn / SMM","Sklad / Qadoqlash / Logistika",
@@ -58,16 +54,12 @@ CATEGORY_BUTTON_ROWS = [
     ["Laborant / Texnik xodim","Avtoservis / Usta"],
 ]
 
-# ✅ Вилоятлар ва уларнинг туманлари
-REGIONS = {
-    "Toshkent shahri": ["Chilonzor", "Yunusobod", "Sergeli", "Yakkasaroy", "Shayxontohur", "Mirzo Ulug‘bek", "Uchtepa", "Olmazor"],
-    "Andijon": ["Andijon shahar", "Asaka", "Baliqchi", "Bo‘z", "Buloqboshi", "Izboskan", "Jalaquduq", "Qo‘rg‘ontepa", "Marhamat", "Oltinko‘l", "Paxtaobod", "Shahrixon", "Ulug‘nor", "Xonobod"],
-    "Farg‘ona": ["Farg‘ona shahar", "Bag‘dod", "Beshariq", "Dang‘ara", "Furqat", "Oltiariq", "Qo‘qon", "Quva", "Quvasoy", "Rishton", "So‘x", "Toshloq", "Uchko‘prik", "Yozyovon"],
-    "Namangan": ["Namangan shahar", "Chortoq", "Chust", "Kosonsoy", "Mingbuloq", "Norin", "Pop", "To‘raqo‘rg‘on", "Uychi", "Uchqo‘rg‘on", "Yangiqo‘rg‘on"],
-    "Samarqand": ["Samarqand shahar", "Bulung‘ur", "Ishtixon", "Jomboy", "Kattaqo‘rg‘on", "Narpay", "Nurobod", "Oqdaryo", "Pastdarg‘om", "Paxtachi", "Payariq", "Qo‘shrabot", "Toyloq", "Urgut"],
-}
+REGIONS = [
+    "Butun Oʻzbekiston boʻyicha","Toshkent shahri","Toshkent viloyati","Andijon","Fargʻona","Namangan",
+    "Samarqand","Buxoro","Xorazm","Qashqadaryo","Surxondaryo","Jizzax","Sirdaryo","Navoiy","Qoraqalpogʻiston R."
+]
 
-# -------------------- Klaviатуралар --------------------
+# -------------------- Klaviaturalar --------------------
 def rows(items, n=2):
     out=[]; r=[]
     for i,x in enumerate(items,1):
@@ -78,26 +70,20 @@ def rows(items, n=2):
 
 def kb_main():
     return ReplyKeyboardMarkup(
-        keyboard=[[KeyboardButton(text="👤 Ish kerak")],
-                  [KeyboardButton(text="🏭 Ishchi kerak")]],
+        keyboard=[[KeyboardButton(text="👤 Ish kerak")],[KeyboardButton(text="🏭 Ishchi kerak")]],
         resize_keyboard=True
     )
 
 def kb_categories():
-    keyboard = [ [KeyboardButton(text=a), KeyboardButton(text=b)] for a,b in CATEGORY_BUTTON_ROWS ]
+    keyboard=[]
+    for a,b in CATEGORY_BUTTON_ROWS:
+        keyboard.append([KeyboardButton(text=a), KeyboardButton(text=b)])
     keyboard.append([KeyboardButton(text="➕ Boshqa yo‘nalish")])
     keyboard.append([KeyboardButton(text="⬅️ Orqaga")])
     return ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
 
 def kb_regions():
-    k = rows(list(REGIONS.keys()), 2)
-    k.insert(0, [KeyboardButton(text="Butun Oʻzbekiston boʻyicha")])
-    k.append([KeyboardButton(text="⬅️ Orqaga")])
-    return ReplyKeyboardMarkup(keyboard=k, resize_keyboard=True)
-
-def kb_districts(region):
-    districts = REGIONS.get(region, [])
-    k = rows(districts, 2)
+    k = rows(REGIONS, 2)
     k.append([KeyboardButton(text="⬅️ Orqaga")])
     return ReplyKeyboardMarkup(keyboard=k, resize_keyboard=True)
 
@@ -107,17 +93,15 @@ def kb_contact():
         resize_keyboard=True
     )
 
-# -------------------- FSM States --------------------
+# -------------------- FSM --------------------
 class Seeker(StatesGroup):
     full_name = State()
     category = State()
     custom_category = State()
     region = State()
-    district = State()
     experience = State()
     salary = State()
     contact = State()
-    extra = State()
 
 # -------------------- DB --------------------
 SQL_SEEKERS = """
@@ -127,11 +111,9 @@ CREATE TABLE IF NOT EXISTS seekers (
     full_name TEXT,
     category TEXT,
     region TEXT,
-    district TEXT,
     experience TEXT,
     salary TEXT,
     contact TEXT,
-    extra TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 """
@@ -142,133 +124,122 @@ async def db_init():
         await db.execute(SQL_SEEKERS)
         await db.commit()
 
-# -------------------- Helper --------------------
-async def check_subscription(user_id):
-    if not CHANNEL_ID: return True
-    try:
-        chat_member = await bot.get_chat_member(CHANNEL_ID, user_id)
-        return chat_member.status in ("member", "administrator", "creator")
-    except Exception:
-        return False
-
 # -------------------- Handlers --------------------
 @router.message(CommandStart())
-async def start(m: Message, state: FSMContext):
+async def on_start(m: Message, state: FSMContext):
     await state.clear()
     await m.answer("Assalomu alaykum! Bu <b>UzbJobBot</b>.\nSizga qanday yordam bera olaman?", reply_markup=kb_main())
 
+@router.message(F.text == "⬅️ Orqaga")
+async def back(m: Message, state: FSMContext):
+    await state.clear()
+    await m.answer("Asosiy menyu:", reply_markup=kb_main())
+
+# --- Seeker flow
 @router.message(F.text == "👤 Ish kerak")
-async def seeker_start(m: Message, state: FSMContext):
-    sub = await check_subscription(m.from_user.id)
-    if not sub:
-        return await m.answer("⚠️ Iltimos, avval kanalga a'zo bo‘ling:\n👉 {}".format(CHANNEL_ID))
+async def seeker_begin(m: Message, state: FSMContext):
     await state.set_state(Seeker.full_name)
     await m.answer("Ism familiyangizni yozing:", reply_markup=ReplyKeyboardRemove())
 
-@router.message(Seeker.full_name)
+@router.message(Seeker.full_name, F.text)
 async def seeker_name(m: Message, state: FSMContext):
     await state.update_data(full_name=m.text.strip())
     await state.set_state(Seeker.category)
     await m.answer("Qaysi yo‘nalishda ish qidiryapsiz?", reply_markup=kb_categories())
 
-@router.message(Seeker.category)
+@router.message(Seeker.category, F.text == "➕ Boshqa yo‘nalish")
+async def seeker_custom_prompt(m: Message, state: FSMContext):
+    await state.set_state(Seeker.custom_category)
+    await m.answer("Yo‘nalishni yozib yuboring:", reply_markup=ReplyKeyboardRemove())
+
+@router.message(Seeker.custom_category, F.text)
+async def seeker_custom_save(m: Message, state: FSMContext):
+    await state.update_data(category=m.text.strip())
+    await state.set_state(Seeker.region)
+    await m.answer(f"Yo‘nalish: <b>{m.text.strip()}</b>\nHududingizni tanlang:", reply_markup=kb_regions())
+
+@router.message(Seeker.category, F.text.in_([b for row in CATEGORY_BUTTON_ROWS for b in row]))
 async def seeker_category(m: Message, state: FSMContext):
-    category = m.text.strip()
-    if category not in [b for r in CATEGORY_BUTTON_ROWS for b in r] and category != "➕ Boshqa yo‘nalish":
-        return await m.answer("Iltimos, yo‘nalishni tugmalardan tanlang.")
-    if category == "➕ Boshqa yo‘nalish":
-        await state.set_state(Seeker.custom_category)
-        return await m.answer("Yo‘nalishni yozing:", reply_markup=ReplyKeyboardRemove())
-    await state.update_data(category=category)
+    await state.update_data(category=m.text)
     await state.set_state(Seeker.region)
     await m.answer("Hududingizni tanlang:", reply_markup=kb_regions())
 
-@router.message(Seeker.custom_category)
-async def seeker_custom(m: Message, state: FSMContext):
-    await state.update_data(category=m.text.strip())
-    await state.set_state(Seeker.region)
-    await m.answer(f"Yo‘nalish: <b>{m.text}</b>\nHududingizni tanlang:", reply_markup=kb_regions())
-
-@router.message(Seeker.region)
+@router.message(Seeker.region, F.text.in_(REGIONS))
 async def seeker_region(m: Message, state: FSMContext):
-    region = m.text
-    if region not in REGIONS and region != "Butun Oʻzbekiston boʻyicha":
-        return await m.answer("Iltimos, viloyatni tanланг.")
-    await state.update_data(region=region)
-    if region != "Butun Oʻzbekiston boʻyicha":
-        await state.set_state(Seeker.district)
-        return await m.answer("Tumanni tanlang:", reply_markup=kb_districts(region))
-    await state.update_data(district="-")
+    await state.update_data(region=m.text)
     await state.set_state(Seeker.experience)
     await m.answer("Tajribangiz (yil):", reply_markup=ReplyKeyboardRemove())
-@router.message(Seeker.experience)
-async def seeker_experience(m: Message, state: FSMContext):
+
+@router.message(Seeker.experience, F.text)
+async def seeker_exp(m: Message, state: FSMContext):
     await state.update_data(experience=m.text.strip())
     await state.set_state(Seeker.salary)
     await m.answer("Qancha oylik kutyapsiz? (so‘mda yoki $):")
 
-@router.message(Seeker.salary)
+@router.message(Seeker.salary, F.text)
 async def seeker_salary(m: Message, state: FSMContext):
     await state.update_data(salary=m.text.strip())
     await state.set_state(Seeker.contact)
     await m.answer("Aloqa raqamingizni yuboring:", reply_markup=kb_contact())
 
-@router.message(Seeker.contact, F.contact)
-async def seeker_contact(m: Message, state: FSMContext):
-    await state.update_data(contact=m.contact.phone_number)
-    await state.set_state(Seeker.extra)
-    await m.answer("Qo‘shimcha ma'lumot (300 ta belgigacha):", reply_markup=ReplyKeyboardRemove())
-
-@router.message(Seeker.contact, F.text)
-async def seeker_contact_text(m: Message, state: FSMContext):
-    await state.update_data(contact=m.text.strip())
-    await state.set_state(Seeker.extra)
-    await m.answer("Qo‘shimcha ma'lumot (300 ta belgigacha):", reply_markup=ReplyKeyboardRemove())
-
-@router.message(Seeker.extra)
-async def seeker_extra(m: Message, state: FSMContext):
-    text = m.text.strip()
-    if len(text) > 300:
-        return await m.answer(f"⚠️ Matn juda uzun! {len(text)} ta belgi bor. Iltimos 300 tadan oshmasin.")
-    await state.update_data(extra=text)
+@router.message(Seeker.contact, F.contact | F.text)
+async def seeker_finish(m: Message, state: FSMContext):
+    contact = m.contact.phone_number if m.contact else m.text.strip()
     data = await state.get_data()
-
     full_name = data["full_name"]
     category = data["category"]
     region = data["region"]
-    district = data.get("district", "-")
     experience = data["experience"]
     salary = data["salary"]
-    contact = data["contact"]
-    extra = data["extra"]
+
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            """INSERT INTO seekers (tg_id, full_name, category, region, experience, salary, contact)
+               VALUES (?,?,?,?,?,?,?)""",
+            (m.from_user.id, full_name, category, region, experience, salary, contact)
+        )
+        await db.commit()
 
     post = (
         f"🆕 <b>Ish qidiruvchi</b>\n\n"
         f"👤 {full_name}\n"
         f"🛠 Yo‘nalish: <b>{category}</b>\n"
-        f"📍 Hudud: {region}, {district}\n"
+        f"📍 Hudud: {region}\n"
         f"🧰 Tajriba: {experience}\n"
-        f"💸 Maosh: {salary}\n"
+        f"💸 Maosh kutyapti: {salary}\n"
         f"📞 Aloqa: {contact}\n"
-        f"📋 Qo‘shimcha: {extra or '-'}\n"
         f"— — —\n"
-        f"@UzbJobBot orqali e'lon bering ✅"
+        f"#ish_kerak #{re.sub(r'[^a-zA-Z0-9]+','_', category.lower())}\n\n"
+        f"📝 E’lon berish: @UzbJobBot"
     )
 
-    # 📢 Kanalga yuborиш
     if CHANNEL_ID:
         try:
             await bot.send_message(CHANNEL_ID, post)
-            await m.answer("🫡 Ma'lumot @UzJobElonlar kanaliga joylandi ✅", reply_markup=kb_main())
         except Exception as e:
-            await m.answer(f"⚠️ E'lon kanalga chiqolmadi: {e}", reply_markup=kb_main())
+            await m.answer(f"⚠️ E'lon kanalda chiqolmadi: {e}")
 
-    # ✅ Базада сақлаш
-    async with aiosqlite.connect(DB_PATH) as db:
-        await db.execute(
-            "INSERT INTO seekers (tg_id, full_name, category, region, district, experience, salary, contact, extra) VALUES (?,?,?,?,?,?,?,?,?)",
-            (m.from_user.id, full_name, category, region, district, experience, salary, contact, extra)
-        )
-        await db.commit()
-
+    await m.answer("🫡 Ma'lumot @UzJobElonlar kanaliga joylandi ✅", reply_markup=kb_main())
     await state.clear()
+
+# -------------------- Keep alive --------------------
+async def ping_server():
+    while True:
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get("https://uzbjobbot.onrender.com") as resp:
+                    print(f"Pinged server: {resp.status}")
+        except Exception as e:
+            print(f"Ping error: {e}")
+        await asyncio.sleep(60)
+
+# -------------------- Runner --------------------
+async def main():
+    dp.include_router(router)
+    await db_init()
+    asyncio.create_task(ping_server())
+    print("✅ Bot started (worker mode).")
+    await dp.start_polling(bot)
+
+if __name__ == "__main__":
+    asyncio.run(main())
