@@ -2,12 +2,14 @@ import asyncio
 import aiosqlite
 import os
 import re
-import aiohttp
 from typing import List, Dict
 
 from aiogram import Bot, Dispatcher, F, Router
 from aiogram.client.default import DefaultBotProperties
-from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove
+from aiogram.types import (
+    Message, ReplyKeyboardMarkup, KeyboardButton, 
+    ReplyKeyboardRemove, InlineKeyboardMarkup, InlineKeyboardButton
+)
 from aiogram.filters import CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
@@ -17,7 +19,7 @@ from dotenv import load_dotenv
 load_dotenv()
 BOT_TOKEN = os.getenv("BOT_TOKEN", "REPLACE")
 ADMIN_ID = int(os.getenv("ADMIN_ID", "0") or 0)
-CHANNEL_ID = os.getenv("CHANNEL_ID")
+CHANNEL_ID = os.getenv("CHANNEL_ID")  # masalan: "@uzjobelonlar" yoki "-1001234567890"
 
 if BOT_TOKEN in ("", "REPLACE", None):
     raise SystemExit("Please set BOT_TOKEN in environment or .env")
@@ -54,12 +56,17 @@ CATEGORY_BUTTON_ROWS = [
     ["Laborant / Texnik xodim","Avtoservis / Usta"],
 ]
 
-REGIONS = [
-    "Butun Oʻzbekiston boʻyicha","Toshkent shahri","Toshkent viloyati","Andijon","Fargʻona","Namangan",
-    "Samarqand","Buxoro","Xorazm","Qashqadaryo","Surxondaryo","Jizzax","Sirdaryo","Navoiy","Qoraqalpogʻiston R."
-]
+REGIONS = {
+    "Toshkent shahri": ["Chilonzor", "Yunusobod", "Mirzo Ulug‘bek", "Yakkasaroy", "Sergeli", "Bektemir"],
+    "Andijon": ["Andijon shahar", "Asaka", "Baliqchi", "Paxtaobod", "Jalaquduq"],
+    "Farg‘ona": ["Farg‘ona shahar", "Marg‘ilon", "Qo‘qon", "Oltiariq", "Rishton"],
+    "Namangan": ["Namangan shahar", "Chortoq", "Uychi", "Pop", "To‘raqo‘rg‘on"],
+    "Samarqand": ["Samarqand shahar", "Urgut", "Kattaqo‘rg‘on", "Ishtixon", "Nurobod"],
+    "Buxoro": ["Buxoro shahar", "G‘ijduvon", "Kogon", "Vobkent", "Qorako‘l"],
+    "Xorazm": ["Urganch", "Xiva", "Bog‘ot", "Yangiariq", "Shovot"],
+}
 
-# -------------------- Klaviaturalar --------------------
+# -------------------- Klaviатуралар --------------------
 def rows(items, n=2):
     out=[]; r=[]
     for i,x in enumerate(items,1):
@@ -83,7 +90,16 @@ def kb_categories():
     return ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
 
 def kb_regions():
-    k = rows(REGIONS, 2)
+    keys = [KeyboardButton(text=k) for k in REGIONS.keys()]
+    keyboard = [keys[i:i+2] for i in range(0, len(keys), 2)]
+    keyboard.append([KeyboardButton(text="⬅️ Orqaga")])
+    return ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
+
+def kb_districts(region):
+    lst = REGIONS.get(region, [])
+    if not lst:
+        return ReplyKeyboardRemove()
+    k = rows(lst, 2)
     k.append([KeyboardButton(text="⬅️ Orqaga")])
     return ReplyKeyboardMarkup(keyboard=k, resize_keyboard=True)
 
@@ -99,30 +115,19 @@ class Seeker(StatesGroup):
     category = State()
     custom_category = State()
     region = State()
+    district = State()
     experience = State()
     salary = State()
     contact = State()
+    extra = State()
 
-# -------------------- DB --------------------
-SQL_SEEKERS = """
-CREATE TABLE IF NOT EXISTS seekers (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    tg_id INTEGER,
-    full_name TEXT,
-    category TEXT,
-    region TEXT,
-    experience TEXT,
-    salary TEXT,
-    contact TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-"""
-
-async def db_init():
-    async with aiosqlite.connect(DB_PATH) as db:
-        await db.execute("PRAGMA journal_mode=WAL;")
-        await db.execute(SQL_SEEKERS)
-        await db.commit()
+# -------------------- Декоратор: Каналга аъзо текшириш --------------------
+async def is_member(user_id: int):
+    try:
+        member = await bot.get_chat_member(CHANNEL_ID, user_id)
+        return member.status in ["member", "administrator", "creator"]
+    except:
+        return False
 
 # -------------------- Handlers --------------------
 @router.message(CommandStart())
@@ -130,14 +135,15 @@ async def on_start(m: Message, state: FSMContext):
     await state.clear()
     await m.answer("Assalomu alaykum! Bu <b>UzbJobBot</b>.\nSizga qanday yordam bera olaman?", reply_markup=kb_main())
 
-@router.message(F.text == "⬅️ Orqaga")
-async def back(m: Message, state: FSMContext):
-    await state.clear()
-    await m.answer("Asosiy menyu:", reply_markup=kb_main())
-
 # --- Seeker flow
 @router.message(F.text == "👤 Ish kerak")
 async def seeker_begin(m: Message, state: FSMContext):
+    if not await is_member(m.from_user.id):
+        kb = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="📢 Kanalga aʼzo bo‘lish", url=f"https://t.me/{CHANNEL_ID.replace('@','')}")]
+        ])
+        await m.answer("⚠️ Iltimos, avval kanalimizga aʼzo bo‘ling!", reply_markup=kb)
+        return
     await state.set_state(Seeker.full_name)
     await m.answer("Ism familiyangizni yozing:", reply_markup=ReplyKeyboardRemove())
 
@@ -150,95 +156,86 @@ async def seeker_name(m: Message, state: FSMContext):
 @router.message(Seeker.category, F.text == "➕ Boshqa yo‘nalish")
 async def seeker_custom_prompt(m: Message, state: FSMContext):
     await state.set_state(Seeker.custom_category)
-    await m.answer("Yo‘nalishni yozib yuboring:", reply_markup=ReplyKeyboardRemove())
+    await m.answer("Yo‘nalishni yozing:", reply_markup=ReplyKeyboardRemove())
 
 @router.message(Seeker.custom_category, F.text)
 async def seeker_custom_save(m: Message, state: FSMContext):
     await state.update_data(category=m.text.strip())
     await state.set_state(Seeker.region)
-    await m.answer(f"Yo‘nalish: <b>{m.text.strip()}</b>\nHududingizni tanlang:", reply_markup=kb_regions())
+    await m.answer("Hududingizni tanlang:", reply_markup=kb_regions())
 
-@router.message(Seeker.category, F.text.in_([b for row in CATEGORY_BUTTON_ROWS for b in row]))
+@router.message(Seeker.category)
 async def seeker_category(m: Message, state: FSMContext):
     await state.update_data(category=m.text)
     await state.set_state(Seeker.region)
     await m.answer("Hududingizni tanlang:", reply_markup=kb_regions())
 
-@router.message(Seeker.region, F.text.in_(REGIONS))
+@router.message(Seeker.region)
 async def seeker_region(m: Message, state: FSMContext):
+    if m.text not in REGIONS:
+        await m.answer("Iltimos, ro‘yxatdan hudud tanlang.")
+        return
     await state.update_data(region=m.text)
+    await state.set_state(Seeker.district)
+    await m.answer("Tumaningizni tanlang:", reply_markup=kb_districts(m.text))
+
+@router.message(Seeker.district)
+async def seeker_district(m: Message, state: FSMContext):
+    await state.update_data(district=m.text)
     await state.set_state(Seeker.experience)
     await m.answer("Tajribangiz (yil):", reply_markup=ReplyKeyboardRemove())
 
-@router.message(Seeker.experience, F.text)
+@router.message(Seeker.experience)
 async def seeker_exp(m: Message, state: FSMContext):
     await state.update_data(experience=m.text.strip())
     await state.set_state(Seeker.salary)
-    await m.answer("Qancha oylik kutyapsiz? (so‘mda yoki $):")
+    await m.answer("Qancha oylik kutyapsiz?")
 
-@router.message(Seeker.salary, F.text)
+@router.message(Seeker.salary)
 async def seeker_salary(m: Message, state: FSMContext):
     await state.update_data(salary=m.text.strip())
     await state.set_state(Seeker.contact)
-    await m.answer("Aloqa raqamingizni yuboring:", reply_markup=kb_contact())
+    await m.answer("📞 Aloqa raqamingizni yuboring:", reply_markup=kb_contact())
 
-@router.message(Seeker.contact, F.contact | F.text)
-async def seeker_finish(m: Message, state: FSMContext):
-    contact = m.contact.phone_number if m.contact else m.text.strip()
+@router.message(Seeker.contact)
+async def seeker_contact(m: Message, state: FSMContext):
+    phone = m.contact.phone_number if m.contact else m.text.strip()
+    await state.update_data(contact=phone)
+    await state.set_state(Seeker.extra)
+    await m.answer("Qo‘shimcha maʼlumot (300 belgigacha):")
+
+@router.message(Seeker.extra)
+async def seeker_extra(m: Message, state: FSMContext):
+    if len(m.text) > 300:
+        await m.answer("❗ 300 belgidan oshmasin, qayta kiriting.")
+        return
+    data = await state.update_data(extra=m.text)
     data = await state.get_data()
-    full_name = data["full_name"]
-    category = data["category"]
-    region = data["region"]
-    experience = data["experience"]
-    salary = data["salary"]
-
-    async with aiosqlite.connect(DB_PATH) as db:
-        await db.execute(
-            """INSERT INTO seekers (tg_id, full_name, category, region, experience, salary, contact)
-               VALUES (?,?,?,?,?,?,?)""",
-            (m.from_user.id, full_name, category, region, experience, salary, contact)
-        )
-        await db.commit()
 
     post = (
         f"🆕 <b>Ish qidiruvchi</b>\n\n"
-        f"👤 {full_name}\n"
-        f"🛠 Yo‘nalish: <b>{category}</b>\n"
-        f"📍 Hudud: {region}\n"
-        f"🧰 Tajriba: {experience}\n"
-        f"💸 Maosh kutyapti: {salary}\n"
-        f"📞 Aloqa: {contact}\n"
-        f"— — —\n"
-        f"#ish_kerak #{re.sub(r'[^a-zA-Z0-9]+','_', category.lower())}\n\n"
-        f"📝 E’lon berish: @UzbJobBot"
+        f"👤 {data['full_name']}\n"
+        f"🛠 {data['category']}\n"
+        f"📍 {data['region']}, {data['district']}\n"
+        f"🧰 Tajriba: {data['experience']}\n"
+        f"💸 Maosh: {data['salary']}\n"
+        f"📞 Aloqa: {data['contact']}\n"
+        f"📝 {data['extra']}\n\n"
+        f"📣 @UzbJobBot орқали эълон беринг"
     )
 
     if CHANNEL_ID:
-        try:
-            await bot.send_message(CHANNEL_ID, post)
-        except Exception as e:
-            await m.answer(f"⚠️ E'lon kanalda chiqolmadi: {e}")
-
-    await m.answer("🫡 Ma'lumot @UzJobElonlar kanaliga joylandi ✅", reply_markup=kb_main())
+        await bot.send_message(CHANNEL_ID, post)
+    await m.answer("🫡 Ma’lumot @UzJobElonlar каналга жойланди ✅", reply_markup=kb_main())
     await state.clear()
 
-# -------------------- Keep alive --------------------
-async def ping_server():
-    while True:
-        try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get("https://uzbjobbot.onrender.com") as resp:
-                    print(f"Pinged server: {resp.status}")
-        except Exception as e:
-            print(f"Ping error: {e}")
-        await asyncio.sleep(60)
-
-# -------------------- Runner --------------------
+# -------------------- Run --------------------
 async def main():
     dp.include_router(router)
-    await db_init()
-    asyncio.create_task(ping_server())
-    print("✅ Bot started (worker mode).")
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute("CREATE TABLE IF NOT EXISTS seekers (id INTEGER PRIMARY KEY)")
+        await db.commit()
+    print("✅ Bot started.")
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
