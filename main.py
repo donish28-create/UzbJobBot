@@ -131,6 +131,98 @@ async def ish_kerak(m: Message, state: FSMContext):
     await state.set_state(Seeker.full_name)
     await m.answer("Ism familiyangizni yozing:", reply_markup=ReplyKeyboardRemove())
 
+
+@router.message(Seeker.full_name)
+async def seeker_name(m: Message, state: FSMContext):
+    await state.update_data(full_name=m.text.strip())
+    await state.set_state(Seeker.category)
+    await m.answer("Qaysi yo‘nalishda ish qidiryapsiz?", reply_markup=kb_categories())
+
+
+@router.message(Seeker.category, F.text == "➕ Boshqa yo‘nalish")
+async def seeker_custom_prompt(m: Message, state: FSMContext):
+    await state.set_state(Seeker.custom_category)
+    await m.answer("Yo‘nalishni yozing:", reply_markup=ReplyKeyboardRemove())
+
+
+@router.message(Seeker.custom_category)
+async def seeker_custom_save(m: Message, state: FSMContext):
+    await state.update_data(category=m.text.strip())
+    await state.set_state(Seeker.region)
+    await m.answer("Hududingizni tanlang:", reply_markup=kb_regions())
+
+
+@router.message(Seeker.category)
+async def seeker_category(m: Message, state: FSMContext):
+    await state.update_data(category=m.text)
+    await state.set_state(Seeker.region)
+    await m.answer("Hududingizni tanlang:", reply_markup=kb_regions())
+
+
+@router.message(Seeker.region)
+async def seeker_region(m: Message, state: FSMContext):
+    if m.text not in REGIONS:
+        await m.answer("Iltimos, ro‘yxatdan hudud tanlang.")
+        return
+    await state.update_data(region=m.text)
+    await state.set_state(Seeker.district)
+    await m.answer("Tumaningizni tanlang:", reply_markup=kb_districts(m.text))
+
+
+@router.message(Seeker.district)
+async def seeker_district(m: Message, state: FSMContext):
+    await state.update_data(district=m.text)
+    await state.set_state(Seeker.experience)
+    await m.answer("Tajribangiz (yil):", reply_markup=ReplyKeyboardRemove())
+
+
+@router.message(Seeker.experience)
+async def seeker_experience(m: Message, state: FSMContext):
+    await state.update_data(experience=m.text.strip())
+    await state.set_state(Seeker.salary)
+    await m.answer("Qancha oylik kutyapsiz?")
+
+
+@router.message(Seeker.salary)
+async def seeker_salary(m: Message, state: FSMContext):
+    await state.update_data(salary=m.text.strip())
+    await state.set_state(Seeker.contact)
+    await m.answer("📞 Aloqa raqamingizni yuboring:", reply_markup=kb_contact())
+
+
+@router.message(Seeker.contact)
+async def seeker_contact(m: Message, state: FSMContext):
+    phone = m.contact.phone_number if m.contact else m.text.strip()
+    await state.update_data(contact=phone)
+    await state.set_state(Seeker.extra)
+    await m.answer("Qo‘shimcha maʼlumot (300 belgigacha):")
+
+
+@router.message(Seeker.extra)
+async def seeker_extra(m: Message, state: FSMContext):
+    if len(m.text) > 300:
+        await m.answer("❗ 300 belgidan oshmasin, qayta kiriting.")
+        return
+    data = await state.update_data(extra=m.text)
+    data = await state.get_data()
+
+    post = (
+        f"🆕 <b>Ish qidiruvchi</b>\n\n"
+        f"👤 {data['full_name']}\n"
+        f"🛠 {data['category']}\n"
+        f"📍 {data['region']}, {data['district']}\n"
+        f"🧰 Tajriba: {data['experience']}\n"
+        f"💸 Maosh kutyapti: {data['salary']}\n"
+        f"📞 Aloqa: {data['contact']}\n"
+        f"📝 {data['extra']}\n\n"
+        f"📣 @UzbJobBot орқали эълон беринг"
+    )
+
+    if CHANNEL_ID:
+        await bot.send_message(CHANNEL_ID, post)
+    await m.answer("🫡 Ma’lumot @UzJobElonlar каналга жойланди ✅", reply_markup=kb_main())
+    await state.clear()
+
 # -------------------- Ish beruvchi flow --------------------
 @router.message(F.text == "🏭 Ishchi kerak")
 async def emp_begin(m: Message, state: FSMContext):
