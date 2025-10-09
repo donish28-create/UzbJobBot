@@ -114,10 +114,21 @@ REGIONS = {
 # -------------------- Kategoriyalar --------------------
 CATEGORY_BUTTON_ROWS = [
     ["Qurilish", "Haydovchilik"],
-    ["Sotuv", "Ta’lim"],
-    ["Tibbiyot", "Xizmat ko‘rsatish"],
+    ["Sotuv / Savdo", "Ta’lim / O‘qituvchilik"],
+    ["Tibbiyot / Farmatsevtika", "Xizmat ko‘rsatish"],
+    ["IT / Dasturlash", "Marketing / Raqamli marketing"],
+    ["Ofis / Buxgalteriya", "Bank / Moliya"],
+    ["Restoran / Oshxona", "Go‘zallik / Sartaroshxona"],
+    ["Xavfsizlik / Qo‘riqlash", "Logistika / Omborxona"],
+    ["Fermerlik / Qishloq xo‘jaligi", "Ishlab chiqarish / Zavod"],
+    ["Telekommunikatsiya", "Dizayn / Grafika"],
+    ["Advokat / Yurist", "Tarjima / Kontent yaratuvchi"],
+    ["Tikuvchilik / Moda", "Avtoservis / Usta"],
+    ["Elektromontyor / Texnik", "SMM / Reklama"],
+    ["Freelance / Masofaviy ish", "Kurier / Yetkazib berish"],
+    ["Ko‘ngilochar soha", "Sport / Fitness"],
+    ["Davlat xizmati / Ma’muriyat", "HR / Kadrlar bo‘limi"],
 ]
-
 # -------------------- Klaviatura funksiyalari --------------------
 def rows(items, n=2):
     out, r = [], []
