@@ -3,6 +3,7 @@ import aiosqlite
 from aiogram import Bot, Dispatcher, F
 from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove
 from datetime import datetime, timedelta
+from database import db_init
 
 DB_PATH = "data.db"
 CHANNEL_ID = "@UzJobElonlar"
