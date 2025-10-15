@@ -426,7 +426,6 @@ async def emp_extra(m: Message, state: FSMContext):
 
 # -------------------- Run --------------------
 async def main():
-    await db_init()
     dp.include_router(router)
     setup_matching(dp, bot)
     print("✅ Bot started (worker mode).")
