@@ -215,13 +215,6 @@ async def cmd_start(m: Message):
 
 # -------------------- Ish kerak flow --------------------
 @router.message(F.text == "👤 Ish kerak")
-@router.message(Seeker.category, F.text == "⬅️ Orqaga")
-@router.message(Seeker.region, F.text == "⬅️ Orqaga")
-@router.message(Seeker.district, F.text == "⬅️ Orqaga")
-async def seeker_back(m: Message, state: FSMContext):
-    await state.clear()
-    await m.answer("Bosh sahifaga qaytdingiz 👇", reply_markup=kb_main())
-    return
 async def ish_kerak(m: Message, state: FSMContext):
     if not await is_member(m.from_user.id):
         kb = InlineKeyboardMarkup(inline_keyboard=[
@@ -229,9 +222,17 @@ async def ish_kerak(m: Message, state: FSMContext):
         ])
         await m.answer("⚠️ Iltimos, avval kanalimizga aʼzo bo‘ling!", reply_markup=kb)
         return
+
     await state.set_state(Seeker.full_name)
     await m.answer("Ism familiyangizni yozing:", reply_markup=ReplyKeyboardRemove())
 
+# -------------------- Orqaga қайтиш (ҳар хил ҳолатлар) --------------------
+@router.message(Seeker.category, F.text == "⬅️ Orqaga")
+@router.message(Seeker.region, F.text == "⬅️ Orqaga")
+@router.message(Seeker.district, F.text == "⬅️ Orqaga")
+async def seeker_back(m: Message, state: FSMContext):
+    await state.clear()
+    await m.answer("Bosh sahifaga qaytdingiz 👇", reply_markup=kb_main())
 
 @router.message(Seeker.full_name)
 async def seeker_name(m: Message, state: FSMContext):
@@ -326,13 +327,6 @@ async def seeker_extra(m: Message, state: FSMContext):
 
 # -------------------- Ish beruvchi flow --------------------
 @router.message(F.text == "🏭 Ishchi kerak")
-@router.message(Employer.category, F.text == "⬅️ Orqaga")
-@router.message(Employer.region, F.text == "⬅️ Orqaga")
-@router.message(Employer.district, F.text == "⬅️ Orqaga")
-async def employer_back(m: Message, state: FSMContext):
-    await state.clear()
-    await m.answer("Bosh sahifaga qaytdingiz 👇", reply_markup=kb_main())
-    return
 async def emp_begin(m: Message, state: FSMContext):
     if not await is_member(m.from_user.id):
         kb = InlineKeyboardMarkup(inline_keyboard=[
@@ -340,8 +334,17 @@ async def emp_begin(m: Message, state: FSMContext):
         ])
         await m.answer("⚠️ Iltimos, avval kanalimizga aʼzo bo‘ling!", reply_markup=kb)
         return
+
     await state.set_state(Employer.full_name)
     await m.answer("Ism familiyangizni yozing:", reply_markup=ReplyKeyboardRemove())
+
+# -------------------- Orqaga қайтиш (иш берувчи учун) --------------------
+@router.message(Employer.category, F.text == "⬅️ Orqaga")
+@router.message(Employer.region, F.text == "⬅️ Orqaga")
+@router.message(Employer.district, F.text == "⬅️ Orqaga")
+async def employer_back(m: Message, state: FSMContext):
+    await state.clear()
+    await m.answer("Bosh sahifaga qaytdingiz 👇", reply_markup=kb_main())
 
 @router.message(Employer.full_name)
 async def emp_name(m: Message, state: FSMContext):
