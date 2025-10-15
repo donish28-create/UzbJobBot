@@ -12,15 +12,15 @@ def kb_matching():
     return ReplyKeyboardMarkup(
         keyboard=[
             [KeyboardButton(text="🧩 Menga mos ishlarni ko‘rish")],
+            [KeyboardButton(text="🧩 Menga mos ishchilarni ko‘rish")],
             [KeyboardButton(text="🚫 To‘xtatish")]
         ],
         resize_keyboard=True
     )
 
-# ==================== Mos ishlarni chiqarish ====================
+# ==================== Ish topish uchun mos e’lonlarni chiqarish ====================
 async def show_matches(m: Message):
     async with aiosqlite.connect(DB_PATH) as db:
-        # Foydalanuvchi qaysi yo‘nalishda ish qidirganini topamiz
         async with db.execute("SELECT category FROM seekers WHERE tg_id = ? ORDER BY id DESC LIMIT 1", (m.from_user.id,)) as cur:
             seeker = await cur.fetchone()
 
@@ -29,7 +29,6 @@ async def show_matches(m: Message):
             return
 
         category = seeker[0]
-        # Shu yo‘nalish bo‘yicha oxirgi 10 ta taklifni chiqaramiz
         async with db.execute("""
             SELECT full_name, region, salary, contact FROM offers
             WHERE category = ? ORDER BY created_at DESC LIMIT 10
@@ -56,12 +55,49 @@ async def show_matches(m: Message):
 
     await m.answer("🕒 Bunday e’lonlar sizga 2 oy davomida avtomatik yuborilib turadi ✅")
 
+# ==================== Ish beruvchi uchun mos ishchilarni chiqarish ====================
+async def show_worker_matches(m: Message):
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute("SELECT category FROM employers WHERE tg_id = ? ORDER BY id DESC LIMIT 1", (m.from_user.id,)) as cur:
+            employer = await cur.fetchone()
+
+        if not employer:
+            await m.answer("Siz hali ish yo‘nalishini tanlamagansiz.", reply_markup=ReplyKeyboardRemove())
+            return
+
+        category = employer[0]
+        async with db.execute("""
+            SELECT full_name, region, salary, contact FROM seekers
+            WHERE category = ? ORDER BY created_at DESC LIMIT 10
+        """, (category,)) as cur:
+            seekers = await cur.fetchall()
+
+    if not seekers:
+        await m.answer("Hozircha bu yo‘nalishda yangi ishchilar yo‘q.")
+        return
+
+    await m.answer(f"👷‍♂️ <b>{category}</b> yo‘nalishidagi ishchilar ro‘yxati:\n", reply_markup=kb_matching())
+
+    for full_name, region, salary, contact in seekers:
+        text = (
+            f"👤 <b>{full_name}</b>\n"
+            f"📍 {region}\n"
+            f"💸 {salary}\n"
+            f"📞 {contact}\n"
+            f"— — —\n"
+            f"#ish_kerak #{category.replace(' ', '_').lower()}"
+        )
+        await m.answer(text)
+        await asyncio.sleep(0.4)
+
+    await m.answer("🕒 Bunday e’lonlar sizga 2 oy davomida avtomatik yuborilib turadi ✅")
+
 # ==================== Avtomatik yuborish ====================
-async def send_new_matches(bot: Bot, category: str, post_text: str):
+async def send_new_matches(bot: Bot, category: str, post_text: str, target="seekers"):
     cutoff = datetime.now() - timedelta(days=60)
     async with aiosqlite.connect(DB_PATH) as db:
-        async with db.execute("""
-            SELECT DISTINCT tg_id FROM seekers
+        async with db.execute(f"""
+            SELECT DISTINCT tg_id FROM {target}
             WHERE category = ? AND datetime(created_at) > ?
         """, (category, cutoff.strftime("%Y-%m-%d %H:%M:%S"))) as cur:
             users = await cur.fetchall()
@@ -77,14 +113,19 @@ async def send_new_matches(bot: Bot, category: str, post_text: str):
 async def stop_matching(m: Message):
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute("DELETE FROM seekers WHERE tg_id = ?", (m.from_user.id,))
+        await db.execute("DELETE FROM employers WHERE tg_id = ?", (m.from_user.id,))
         await db.commit()
     await m.answer("🚫 Mos e’lonlarni yuborish to‘xtatildi.", reply_markup=ReplyKeyboardRemove())
 
-# ==================== Ulanish funksiyasi ====================
+# ==================== Dispatcher bilan bog‘lash ====================
 def setup_matching(dp: Dispatcher, bot: Bot):
     @dp.message(F.text == "🧩 Menga mos ishlarni ko‘rish")
     async def _(m: Message):
         await show_matches(m)
+
+    @dp.message(F.text == "🧩 Menga mos ishchilarni ko‘rish")
+    async def _(m: Message):
+        await show_worker_matches(m)
 
     @dp.message(F.text == "🚫 To‘xtatish")
     async def _(m: Message):
