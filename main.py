@@ -9,6 +9,7 @@ from aiogram import Router
 import os
 from dotenv import load_dotenv
 from matching import setup_matching
+from database import db_init
 
 load_dotenv()
 
