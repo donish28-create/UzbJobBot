@@ -241,22 +241,25 @@ async def seeker_name(m: Message, state: FSMContext):
     await m.answer("Qaysi yo‘nalishda ish qidiryapsiz?", reply_markup=kb_categories())
 
 
+# -------------------- Yo‘nalish танлаш қисм --------------------
+
+# ➕ Бошқа йўналишни танлаш
 @router.message(Seeker.category, F.text == "➕ Boshqa yo‘nalish")
 async def seeker_custom_prompt(m: Message, state: FSMContext):
     await state.set_state(Seeker.custom_category)
-    await m.answer("Yo‘nalishni yozing:", reply_markup=ReplyKeyboardRemove())
+    await m.answer("Yo‘nalishingizni yozing:", reply_markup=ReplyKeyboardRemove())
 
-
+# Бошқа йўналишни ёзиб жўнатгандан кейин
 @router.message(Seeker.custom_category)
 async def seeker_custom_save(m: Message, state: FSMContext):
     await state.update_data(category=m.text.strip())
     await state.set_state(Seeker.region)
     await m.answer("Hududingizni tanlang:", reply_markup=kb_regions())
 
-
+# Оддий йўналишни танлаганда
 @router.message(Seeker.category)
 async def seeker_category(m: Message, state: FSMContext):
-    await state.update_data(category=m.text)
+    await state.update_data(category=m.text.strip())
     await state.set_state(Seeker.region)
     await m.answer("Hududingizni tanlang:", reply_markup=kb_regions())
 
@@ -325,26 +328,49 @@ async def seeker_extra(m: Message, state: FSMContext):
     await m.answer("🫡 Ma’lumot @UzJobElonlar каналга жойланди ✅", reply_markup=kb_main())
     await state.clear()
 
-# -------------------- Ish beruvchi flow --------------------
-@router.message(F.text == "🏭 Ishchi kerak")
-async def emp_begin(m: Message, state: FSMContext):
+# -------------------- Ish kerak flow --------------------
+@router.message(F.text == "👤 Ish kerak")
+async def ish_kerak(m: Message, state: FSMContext):
     if not await is_member(m.from_user.id):
         kb = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="📢 Kanalga aʼzo bo‘lish", url=f"https://t.me/{CHANNEL_ID.replace('@','')}")]
         ])
         await m.answer("⚠️ Iltimos, avval kanalimizga aʼzo bo‘ling!", reply_markup=kb)
         return
+    await state.set_state(Seeker.full_name)
+    await m.answer("Ism familiyangizni yozing:", reply_markup=ReplyKeyboardRemove())
 
+
+# 🔹 Faqat seeker uchun orqaga qaytish
+@router.message(F.text == "⬅️ Orqaga", Seeker.category)
+@router.message(F.text == "⬅️ Orqaga", Seeker.region)
+@router.message(F.text == "⬅️ Orqaga", Seeker.district)
+async def seeker_back(m: Message, state: FSMContext):
+    await state.clear()
+    await m.answer("Bosh sahifaga qaytdingiz 👇", reply_markup=kb_main())
+
+
+# -------------------- Ish берувчи flow --------------------
+@router.message(F.text == "🏭 Ishchi kerak")
+async def ishchi_kerak(m: Message, state: FSMContext):
+    if not await is_member(m.from_user.id):
+        kb = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="📢 Kanalga aʼzo bo‘lish", url=f"https://t.me/{CHANNEL_ID.replace('@','')}")]
+        ])
+        await m.answer("⚠️ Iltimos, avval kanalimizga aʼzo bo‘ling!", reply_markup=kb)
+        return
     await state.set_state(Employer.full_name)
     await m.answer("Ism familiyangizni yozing:", reply_markup=ReplyKeyboardRemove())
 
-# -------------------- Orqaga қайтиш (иш берувчи учун) --------------------
-@router.message(Employer.category, F.text == "⬅️ Orqaga")
-@router.message(Employer.region, F.text == "⬅️ Orqaga")
-@router.message(Employer.district, F.text == "⬅️ Orqaga")
+
+# 🔹 Faqat employer учун orqaga қайтиш
+@router.message(F.text == "⬅️ Orqaga", Employer.category)
+@router.message(F.text == "⬅️ Orqaga", Employer.region)
+@router.message(F.text == "⬅️ Orqaga", Employer.district)
 async def employer_back(m: Message, state: FSMContext):
     await state.clear()
     await m.answer("Bosh sahifaga qaytdingiz 👇", reply_markup=kb_main())
+
 
 @router.message(Employer.full_name)
 async def emp_name(m: Message, state: FSMContext):
