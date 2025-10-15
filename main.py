@@ -428,7 +428,10 @@ async def emp_extra(m: Message, state: FSMContext):
 # -------------------- Run --------------------
 async def main():
     dp.include_router(router)
-    await dp.start_polling(bot)
+    setup_matching(dp, bot)   # 🧩 matching moduli ulanadi
+    await db_init()           # 🔹 baza yaratiladi
+    print("✅ Bot started (worker mode).")
+    await dp.start_polling(bot)   # 🔹 bot ishga tushadi
 
 if __name__ == "__main__":
     asyncio.run(main())
