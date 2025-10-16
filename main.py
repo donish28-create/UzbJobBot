@@ -455,7 +455,24 @@ async def emp_extra(m: Message, state: FSMContext):
     await m.answer("🫡 Ma’lumot @UzJobElonlar каналга жойланди ✅", reply_markup=kb_main())
     await state.clear()
 # -------------------- Run (Polling версия) --------------------
+import os
 import asyncio
+from aiogram import Bot, Dispatcher
+from aiogram.enums import ParseMode
+from aiohttp import web
+from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
+from dotenv import load_dotenv
+from matching import setup_matching
+from database import db_init
+from main import router  # агар router шу файлда бўлмаса, импортни текшир
+
+load_dotenv()
+
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+WEBHOOK_URL = os.getenv("WEBHOOK_URL")
+
+bot = Bot(token=BOT_TOKEN, parse_mode=ParseMode.HTML)
+dp = Dispatcher()
 
 async def main():
     await db_init()
@@ -463,11 +480,33 @@ async def main():
     setup_matching(dp, bot)
 
     print("📁 Database initialized successfully.")
-    print("✅ Bot started (polling mode).")
+    print("✅ Starting webhook mode...")
 
     await bot.delete_webhook(drop_pending_updates=True)
-    await dp.start_polling(bot)
+    await bot.set_webhook(WEBHOOK_URL)
+    print(f"🌐 Webhook set to: {WEBHOOK_URL}")
+
+    app = web.Application()
+    SimpleRequestHandler(dispatcher=dp, bot=bot).register(app, path="/webhook")
+    setup_application(app, dp, bot=bot)
+
+    async def home(request):
+        return web.Response(text="✅ UzbJobBot webhook is running", status=200)
+
+    app.router.add_get("/", home)
+    app.router.add_get("/webhook", home)
+
+    port = int(os.environ.get("PORT", 10000))
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, "0.0.0.0", port)
+    await site.start()
+
+    print(f"✅ Bot started on port {port}")
+    await asyncio.Event().wait()
 
 
 if __name__ == "__main__":
+    import nest_asyncio
+    nest_asyncio.apply()
     asyncio.run(main())
