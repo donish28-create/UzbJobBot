@@ -475,7 +475,12 @@ async def main():
     SimpleRequestHandler(dispatcher=dp, bot=bot).register(app, path="/webhook")
     setup_application(app, dp, bot=bot)
 
-    web.run_app(app, host="0.0.0.0", port=int(os.getenv("PORT", 10000)))
+   runner = web.AppRunner(app)
+await runner.setup()
+site = web.TCPSite(runner, host="0.0.0.0", port=int(os.getenv("PORT", 10000)))
+await site.start()
+
+await asyncio.Event().wait()
 
 if __name__ == "__main__":
     import asyncio
