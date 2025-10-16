@@ -455,12 +455,28 @@ async def emp_extra(m: Message, state: FSMContext):
     await state.clear()
 
 # -------------------- Run --------------------
+import os
+from aiohttp import web
+from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
+
 async def main():
-    await db_init()  # база яратилади ёки текширилади
+    await db_init()
     dp.include_router(router)
     setup_matching(dp, bot)
     print("✅ Bot started (worker mode).")
-    await dp.start_polling(bot)
+
+    # Polling эмас, webhook орқали ишлайди
+    await bot.delete_webhook(drop_pending_updates=True)
+    await bot.set_webhook(WEBHOOK_URL)
+
+    # Render сервер webhook орқали чақирганда ишлайди
+    app = web.Application()
+    SimpleRequestHandler(dispatcher=dp, bot=bot).register(app, path="/webhook")
+    setup_application(app, dp, bot=bot)
+
+    web.run_app(app, host="0.0.0.0", port=int(os.getenv("PORT", 10000)))
 
 if __name__ == "__main__":
+    import asyncio
     asyncio.run(main())
+
