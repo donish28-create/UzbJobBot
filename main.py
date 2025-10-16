@@ -454,7 +454,6 @@ async def emp_extra(m: Message, state: FSMContext):
         await bot.send_message(CHANNEL_ID, post)
     await m.answer("🫡 Ma’lumot @UzJobElonlar каналга жойланди ✅", reply_markup=kb_main())
     await state.clear()
-
 # -------------------- Run --------------------
 import os
 import asyncio
@@ -468,33 +467,39 @@ async def main():
     setup_matching(dp, bot)
 
     print("📁 Database initialized successfully.")
-    print("✅ Bot started (worker mode).")
 
-    # ⚙️ Webhookни қайта ўрнатамиз
+    # ⚙️ Webhook'ни қайта созлаймиз
     await bot.delete_webhook(drop_pending_updates=True)
     await bot.set_webhook(WEBHOOK_URL)
+    print(f"🌐 Webhook set to: {WEBHOOK_URL}")
 
-    # 🚀 Web-серверни ишга туширамиз
+    # 🚀 Aiohttp web server
     app = web.Application()
     SimpleRequestHandler(dispatcher=dp, bot=bot).register(app, path="/webhook")
     setup_application(app, dp, bot=bot)
 
-    # Webhook серверини aiohttp орқали ишга туширамиз
+    # ✅ Тест учун "/" йўлини қўшамиз (404 хатони олмаслик учун)
+    async def home(request):
+        return web.Response(text="✅ UzbJobBot webhook is running", status=200)
+
+    app.router.add_get("/", home)
+    app.router.add_get("/webhook", home)
+
+    # 🔧 Порт ва серверни ишга туширамиз
+    port = int(os.environ.get("PORT", 10000))
     runner = web.AppRunner(app)
     await runner.setup()
-    site = web.TCPSite(runner, "0.0.0.0", int(os.getenv("PORT", 10000)))
+    site = web.TCPSite(runner, "0.0.0.0", port)
     await site.start()
 
-    # asyncio циклни очиқ ҳолда ушлаб туриш
-    while True:
-        await asyncio.sleep(3600)
+    print(f"✅ Bot started on port {port}")
+    await asyncio.Event().wait()
 
 
 if __name__ == "__main__":
     import nest_asyncio
     import asyncio
 
-    nest_asyncio.apply()  # Render муҳитида asyncio’ни тўғри ишлатиш учун
-
+    nest_asyncio.apply()
     loop = asyncio.get_event_loop()
     loop.run_until_complete(main())
