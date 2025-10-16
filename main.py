@@ -457,35 +457,38 @@ async def emp_extra(m: Message, state: FSMContext):
 
 # -------------------- Run --------------------
 import os
+import asyncio
 from aiohttp import web
 from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
+
 
 async def main():
     await db_init()
     dp.include_router(router)
     setup_matching(dp, bot)
+
+    print("📁 Database initialized successfully.")
     print("✅ Bot started (worker mode).")
 
-    # Polling эмас, webhook орқали ишлайди
+    # ⚙️ Webhookни қайта ўрнатамиз
     await bot.delete_webhook(drop_pending_updates=True)
     await bot.set_webhook(WEBHOOK_URL)
 
-    # Render сервер webhook орқали чақирганда ишлайди
+    # 🚀 Web-серверни ишга туширамиз
     app = web.Application()
     SimpleRequestHandler(dispatcher=dp, bot=bot).register(app, path="/webhook")
     setup_application(app, dp, bot=bot)
 
-    # 🚀 Web серверни asyncio ичида ишга туширамиз:
+    # Webhook серверини aiohttp орқали ишга туширамиз
     runner = web.AppRunner(app)
     await runner.setup()
-    site = web.TCPSite(runner, host="0.0.0.0", port=int(os.getenv("PORT", 10000)))
+    site = web.TCPSite(runner, "0.0.0.0", int(os.getenv("PORT", 10000)))
     await site.start()
 
-    await asyncio.Event().wait()
+    # asyncio циклни очиқ ҳолда ушлаб туриш
+    while True:
+        await asyncio.sleep(3600)
 
 
 if __name__ == "__main__":
-    import asyncio
     asyncio.run(main())
-
-
