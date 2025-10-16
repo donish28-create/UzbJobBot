@@ -475,7 +475,7 @@ async def main():
     SimpleRequestHandler(dispatcher=dp, bot=bot).register(app, path="/webhook")
     setup_application(app, dp, bot=bot)
 
-   runner = web.AppRunner(app)
+runner = web.AppRunner(app)
 await runner.setup()
 site = web.TCPSite(runner, host="0.0.0.0", port=int(os.getenv("PORT", 10000)))
 await site.start()
