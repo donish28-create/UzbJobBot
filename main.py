@@ -491,4 +491,10 @@ async def main():
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    import nest_asyncio
+    import asyncio
+
+    nest_asyncio.apply()  # Render муҳитида asyncio’ни тўғри ишлатиш учун
+
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(main())
