@@ -9,17 +9,15 @@ from aiogram.types import Message, KeyboardButton, ReplyKeyboardMarkup, ReplyKey
 from aiogram.fsm.state import StatesGroup, State
 from aiogram.fsm.context import FSMContext
 from aiogram.filters import CommandStart
-from dotenv import load_dotenv
 from aiogram.client.default import DefaultBotProperties
+from dotenv import load_dotenv
 
+load_dotenv()
+BOT_TOKEN = os.getenv("BOT_TOKEN")
 bot = Bot(
     token=BOT_TOKEN,
     default=DefaultBotProperties(parse_mode=ParseMode.HTML)
 )
-
-load_dotenv()
-
-BOT_TOKEN = os.getenv("BOT_TOKEN")
 ADMIN_ID = int(os.getenv("ADMIN_ID"))
 CHANNEL_ID = os.getenv("CHANNEL_ID")
 
