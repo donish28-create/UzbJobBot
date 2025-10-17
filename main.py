@@ -473,9 +473,6 @@ WEBHOOK_URL = os.getenv("WEBHOOK_URL")
 CHANNEL_ID = os.getenv("CHANNEL_ID")
 ADMIN_ID = os.getenv("ADMIN_ID")
 
-bot = Bot(token=BOT_TOKEN, parse_mode=ParseMode.HTML)
-dp = Dispatcher()
-
 async def main():
     # ✅ Matching tizimini ishga tushiramiz
     setup_matching(dp, bot)
