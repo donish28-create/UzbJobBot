@@ -464,38 +464,42 @@ from aiohttp import web
 from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
 from dotenv import load_dotenv
 from matching import setup_matching
-from database import db_init
-from routers import router  # router бошқа файлда бўлиши керак
 
+# 🔹 Muhit o‘zgaruvchilarini yuklaymiz
 load_dotenv()
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 WEBHOOK_URL = os.getenv("WEBHOOK_URL")
+CHANNEL_ID = os.getenv("CHANNEL_ID")
+ADMIN_ID = os.getenv("ADMIN_ID")
+
+bot = Bot(token=BOT_TOKEN, parse_mode=ParseMode.HTML)
+dp = Dispatcher()
 
 async def main():
-    # 🗂️ Базани тайёрлаймиз
-    await db_init()
-    dp.include_router(router)
+    # ✅ Matching tizimini ishga tushiramiz
     setup_matching(dp, bot)
-
     print("📁 Database initialized successfully.")
     print("🌐 Setting webhook...")
 
+    # Webhook sozlamalari
     await bot.delete_webhook(drop_pending_updates=True)
     await bot.set_webhook(WEBHOOK_URL)
     print(f"✅ Webhook set to {WEBHOOK_URL}")
 
-    # 🚀 Aiohttp сервер
+    # 🚀 Web-serverni ishga tushiramiz
     app = web.Application()
     SimpleRequestHandler(dispatcher=dp, bot=bot).register(app, path="/webhook")
     setup_application(app, dp, bot=bot)
 
-    # 🔹 Test route — браузердан текшириш учун
+    # 🔹 Test route (404 хатони олмаслик учун)
     async def home(request):
         return web.Response(text="✅ UzbJobBot webhook is running!", status=200)
+
     app.router.add_get("/", home)
     app.router.add_get("/webhook", home)
 
+    # 🌐 Render портини ишга туширамиз
     port = int(os.getenv("PORT", 10000))
     runner = web.AppRunner(app)
     await runner.setup()
