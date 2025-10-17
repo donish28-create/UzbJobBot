@@ -1,6 +1,7 @@
 import asyncio
 import os
 from aiogram import Bot, Dispatcher
+from aiogram.enums import ParseMode
 from database import db_init
 from routers import router
 from matching import setup_matching
@@ -8,14 +9,17 @@ from aiogram.types import Message, KeyboardButton, ReplyKeyboardMarkup, ReplyKey
 from aiogram.fsm.state import StatesGroup, State
 from aiogram.fsm.context import FSMContext
 from aiogram.filters import CommandStart
-from aiogram import Router
 from dotenv import load_dotenv
+
 load_dotenv()
+
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 ADMIN_ID = int(os.getenv("ADMIN_ID"))
 CHANNEL_ID = os.getenv("CHANNEL_ID")
+
 bot = Bot(token=BOT_TOKEN, parse_mode=ParseMode.HTML)
 dp = Dispatcher()
+
 # -------------------- HUDUDLAR --------------------
 REGIONS = {
     "Butun Oʻzbekiston boʻyicha": [],
@@ -460,5 +464,6 @@ async def main():
 
     await dp.start_polling(bot)
 
-if name == "main":
+
+if __name__ == "__main__":
     asyncio.run(main())
