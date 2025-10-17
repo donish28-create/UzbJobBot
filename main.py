@@ -1,27 +1,21 @@
 import asyncio
-from aiogram import Bot, Dispatcher, F
+import os
+from aiogram import Bot, Dispatcher
+from database import db_init
+from routers import router
+from matching import setup_matching
 from aiogram.types import Message, KeyboardButton, ReplyKeyboardMarkup, ReplyKeyboardRemove, InlineKeyboardButton, InlineKeyboardMarkup
 from aiogram.fsm.state import StatesGroup, State
 from aiogram.fsm.context import FSMContext
 from aiogram.filters import CommandStart
-from aiogram.enums import ParseMode
 from aiogram import Router
-import os
 from dotenv import load_dotenv
-from matching import setup_matching
-from database import db_init
-from routers import router
 load_dotenv()
-
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-CHANNEL_ID = os.getenv("CHANNEL_ID")
 ADMIN_ID = int(os.getenv("ADMIN_ID"))
-WEBHOOK_URL = os.getenv("WEBHOOK_URL")
-
+CHANNEL_ID = os.getenv("CHANNEL_ID")
 bot = Bot(token=BOT_TOKEN, parse_mode=ParseMode.HTML)
 dp = Dispatcher()
-router = Router()
-
 # -------------------- HUDUDLAR --------------------
 REGIONS = {
     "Butun Oʻzbekiston boʻyicha": [],
@@ -456,27 +450,15 @@ async def emp_extra(m: Message, state: FSMContext):
     await m.answer("🫡 Ma’lumot @UzJobElonlar каналга жойланди ✅", reply_markup=kb_main())
     await state.clear()
 # -------------------- Run (Polling версия) --------------------
-import asyncio
-from aiogram import Bot, Dispatcher
-from aiogram.enums import ParseMode
-from dotenv import load_dotenv
-import os
-from matching import setup_matching
-
-# 🔹 Muhitdan o'zgaruvchilarni yuklaymiz
-load_dotenv()
-
-BOT_TOKEN = os.getenv("BOT_TOKEN")
-
-# 🔹 Bot va Dispatcher
-bot = Bot(token=BOT_TOKEN, parse_mode=ParseMode.HTML)
-dp = Dispatcher()
-
 async def main():
-    print("📁 Database initialized successfully.")
+    await db_init()
+    dp.include_router(router)
     setup_matching(dp, bot)
-    print("✅ Bot started in polling mode.")
+
+    print("📁 Database initialized successfully.")
+    print("✅ Bot started (polling mode).")
+
     await dp.start_polling(bot)
 
-if __name__ == "__main__":
+if name == "main":
     asyncio.run(main())
