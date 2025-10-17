@@ -1,5 +1,15 @@
 import aiosqlite
 
+async def get_similar_posts(category: str, region: str):
+    async with aiosqlite.connect("database.db") as db:
+        cursor = await db.execute(
+            "SELECT full_name, category, region, district, salary, contact FROM posts WHERE category=? AND region=? LIMIT 5",
+            (category, region)
+        )
+        rows = await cursor.fetchall()
+        return [dict(zip(["full_name", "category", "region", "district", "salary", "contact"], r)) for r in rows]
+
+
 DB_NAME = "data.db"
 
 async def db_init():
