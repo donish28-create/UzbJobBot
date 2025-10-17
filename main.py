@@ -464,7 +464,7 @@ from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_applicati
 from dotenv import load_dotenv
 from matching import setup_matching
 from database import db_init
-from main import router  # агар router шу файлда бўлмаса, импортни текшир
+from routers import router  # router бошқа файлда бўлиши керак
 
 load_dotenv()
 
@@ -475,34 +475,36 @@ bot = Bot(token=BOT_TOKEN, parse_mode=ParseMode.HTML)
 dp = Dispatcher()
 
 async def main():
+    # 🗂️ Базани тайёрлаймиз
     await db_init()
     dp.include_router(router)
     setup_matching(dp, bot)
 
     print("📁 Database initialized successfully.")
-    print("✅ Starting webhook mode...")
+    print("🌐 Setting webhook...")
 
     await bot.delete_webhook(drop_pending_updates=True)
     await bot.set_webhook(WEBHOOK_URL)
-    print(f"🌐 Webhook set to: {WEBHOOK_URL}")
+    print(f"✅ Webhook set to {WEBHOOK_URL}")
 
+    # 🚀 Aiohttp сервер
     app = web.Application()
     SimpleRequestHandler(dispatcher=dp, bot=bot).register(app, path="/webhook")
     setup_application(app, dp, bot=bot)
 
+    # 🔹 Test route — браузердан текшириш учун
     async def home(request):
-        return web.Response(text="✅ UzbJobBot webhook is running", status=200)
-
+        return web.Response(text="✅ UzbJobBot webhook is running!", status=200)
     app.router.add_get("/", home)
     app.router.add_get("/webhook", home)
 
-    port = int(os.environ.get("PORT", 10000))
+    port = int(os.getenv("PORT", 10000))
     runner = web.AppRunner(app)
     await runner.setup()
     site = web.TCPSite(runner, "0.0.0.0", port)
     await site.start()
 
-    print(f"✅ Bot started on port {port}")
+    print(f"🚀 Bot started on port {port}")
     await asyncio.Event().wait()
 
 
