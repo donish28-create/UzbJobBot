@@ -3,6 +3,34 @@ import aiosqlite
 from aiogram import Bot, Dispatcher, F
 from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove
 from datetime import datetime, timedelta
+from aiogram import Dispatcher, Bot
+from aiogram.types import Message
+from database import get_similar_posts  # бу функция базадан ўхшаш эълонларни олади деб ҳисоблаймиз
+
+# 🔹 Эълон берилгандан кейин ўхшаш эълонларни топиш
+async def show_similar_posts(bot: Bot, user_id: int, category: str, region: str):
+    matches = await get_similar_posts(category, region)
+    if not matches:
+        await bot.send_message(user_id, "😔 Hozircha o‘xshash e’lonlar topilmadi.")
+        return
+
+    text = "🧩 Sizga o‘xshash e’lonlar:\n\n"
+    for m in matches[:5]:
+        text += (
+            f"👤 {m['full_name']}\n"
+            f"🛠 {m['category']} | {m['region']}, {m['district']}\n"
+            f"💸 {m['salary']}\n"
+            f"📞 {m['contact']}\n\n"
+        )
+    await bot.send_message(user_id, text)
+
+
+# 🔹 Бу функцияни main.py дан setup_matching(dp, bot) орқали чақириш учун
+def setup_matching(dp: Dispatcher, bot: Bot):
+    print("🔗 Matching system initialized.")
+    # Агар керак бўлса, ивентлар ёки триггерлар бу ерда уланади
+    # Масалан, эълон жойланганда show_similar_posts(...) ишга тушсин
+    pass
 
 DB_PATH = "data.db"
 CHANNEL_ID = "@UzJobElonlar"
