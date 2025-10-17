@@ -10,6 +10,7 @@ import os
 from dotenv import load_dotenv
 from matching import setup_matching
 from database import db_init
+from routers import router
 load_dotenv()
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
